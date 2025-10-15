@@ -98,6 +98,15 @@
     line-height: 1;
   }
 }
+.glass {
+  background: rgba(0, 0, 0, 0.35);                /* funguje v obou tématech */
+  backdrop-filter: saturate(120%) blur(8px);
+  -webkit-backdrop-filter: saturate(120%) blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: var(--shadow-center, 0 0 12px -2px rgb(0 0 0 / 0.2));
+  border-radius: var(--radius-box, 1rem);
+}
+
 
 :root,
 [data-theme] {

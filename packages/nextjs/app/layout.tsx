@@ -1,3 +1,5 @@
+// ⬇️ PŘIDAT: import backgroundu (client komponenta)
+import { NetworkBackground } from "../components/NetworkBackground";
 import "@rainbow-me/rainbowkit/styles.css";
 import { ScaffoldEthAppWithProviders } from "~~/components/ScaffoldEthAppWithProviders";
 import { ThemeProvider } from "~~/components/ThemeProvider";
@@ -13,9 +15,15 @@ const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
   return (
     <html suppressHydrationWarning>
       <body>
-        <ThemeProvider enableSystem>
-          <ScaffoldEthAppWithProviders>{children}</ScaffoldEthAppWithProviders>
-        </ThemeProvider>
+        {/* ⬇️ PŘIDAT: canvas background (nebude blokovat kliky) */}
+        <NetworkBackground />
+
+        {/* ⬇️ JEMNÝ WRAP: ať je UI vždy nad pozadím */}
+        <div className="relative z-10 pointer-events-auto">
+          <ThemeProvider attribute="data-theme" defaultTheme="dark" enableSystem={false} themes={["dark"]}>
+            <ScaffoldEthAppWithProviders>{children}</ScaffoldEthAppWithProviders>
+          </ThemeProvider>
+        </div>
       </body>
     </html>
   );
