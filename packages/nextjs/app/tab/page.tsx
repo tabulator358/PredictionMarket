@@ -1,158 +1,145 @@
-// packages/nextjs/app/tab/page.tsx
 "use client";
 
 import { useMemo, useState } from "react";
-import { Address, isAddress, parseUnits } from "viem";
-import { useAccount } from "wagmi";
+import { Address, formatUnits, isAddress, parseUnits } from "viem";
+import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { AddressInput, IntegerInput } from "~~/components/scaffold-eth";
-import { useDeployedContractInfo, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
-// packages/nextjs/app/tab/page.tsx
-
-// packages/nextjs/app/tab/page.tsx
-
-// packages/nextjs/app/tab/page.tsx
-
-// packages/nextjs/app/tab/page.tsx
-
-// packages/nextjs/app/tab/page.tsx
-
-// packages/nextjs/app/tab/page.tsx
-
-// packages/nextjs/app/tab/page.tsx
-
-// packages/nextjs/app/tab/page.tsx
-
-// packages/nextjs/app/tab/page.tsx
-
-// packages/nextjs/app/tab/page.tsx
+/** Minimal inline ABI – nezávislé na /deployments */
+const TAB_MIN_ABI = [
+  { type: "function", name: "symbol", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+  { type: "function", name: "decimals", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
+  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "AUTHORIZER", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "CLAIM_AMOUNT", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "claimAuthorized", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "bool" }] },
+  { type: "function", name: "claimConsumed",  stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "bool" }] },
+  { type: "function", name: "mint",           stateMutability: "nonpayable", inputs: [{ type: "address" }, { type: "uint256" }], outputs: [] },
+  { type: "function", name: "burn",           stateMutability: "nonpayable", inputs: [{ type: "uint256" }], outputs: [] },
+  { type: "function", name: "authorizeClaim", stateMutability: "nonpayable", inputs: [{ type: "address" }], outputs: [] },
+  { type: "function", name: "revokeClaim",    stateMutability: "nonpayable", inputs: [{ type: "address" }], outputs: [] },
+  { type: "function", name: "claim",          stateMutability: "nonpayable", inputs: [], outputs: [] },
+] as const;
 
 export default function TABcoinPage() {
   const { address: connectedAddress } = useAccount();
 
-  // ——— Contract binding ———
-  const { data: tabcoin } = useDeployedContractInfo("TABcoin");
-  const contractName = "TABcoin";
+  // —— Hardcoded Sepolia address ——
+  const TAB_ADDRESS = "0x9F3BF1e7206A8F5012C2891FdC031B818e2f016d" as Address;
 
   // ——— Local UI state ———
-  const [mintTo, setMintTo] = useState<Address | undefined>(undefined);
+  const [mintTo, setMintTo] = useState<string>("");
   const [mintAmount, setMintAmount] = useState<string>("0");
   const [burnAmount, setBurnAmount] = useState<string>("0");
-  const [authAddr, setAuthAddr] = useState<Address | undefined>(undefined);
-  const watchAddr = authAddr ?? connectedAddress;
+  const [authAddr, setAuthAddr] = useState<string>("");
 
-  // ——— Reads ———
-  const { data: symbol } = useScaffoldReadContract({ contractName, functionName: "symbol" });
-  const { data: decimals } = useScaffoldReadContract({ contractName, functionName: "decimals" });
-  const { data: owner } = useScaffoldReadContract({ contractName, functionName: "owner" });
-  const { data: authorizer } = useScaffoldReadContract({ contractName, functionName: "authorizer" });
-  const { data: claimAmount } = useScaffoldReadContract({ contractName, functionName: "CLAIM_AMOUNT" });
+  // Helpers
+  const safeStr = (x: unknown) => (x === undefined || x === null ? "" : String(x));
+  const isAddrOk = (x?: string) => !!x && isAddress(x);
+  const watchAddr = safeStr(authAddr) || safeStr(connectedAddress) || "";
 
-  const { data: myBalance } = useScaffoldReadContract({
-    contractName,
-    functionName: "balanceOf",
+  // --- READS ---
+  const { data: symbol } = useReadContract({ abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "symbol" });
+  const { data: decimalsRaw } = useReadContract({ abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "decimals" });
+  const decimals = Number(decimalsRaw ?? 18);
+
+  const { data: authorizerAddr } = useReadContract({ abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "AUTHORIZER" });
+  const { data: claimAmountRaw } = useReadContract({ abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "CLAIM_AMOUNT" });
+  const claimAmount = claimAmountRaw as bigint | undefined;
+
+  const { data: myBalance } = useReadContract({
+    abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "balanceOf",
     args: [connectedAddress as Address],
-    enabled: !!connectedAddress,
-  });
-  const { data: watchedBalance } = useScaffoldReadContract({
-    contractName,
-    functionName: "balanceOf",
-    args: [watchAddr as Address],
-    enabled: !!watchAddr,
-  });
-  const { data: isAuthorized } = useScaffoldReadContract({
-    contractName,
-    functionName: "claimAuthorized",
-    args: [watchAddr as Address],
-    enabled: !!watchAddr,
-  });
-  const { data: isConsumed } = useScaffoldReadContract({
-    contractName,
-    functionName: "claimConsumed",
-    args: [watchAddr as Address],
-    enabled: !!watchAddr,
+    query: { enabled: !!connectedAddress && isAddrOk(String(connectedAddress)) },
   });
 
-  const isOwner = useMemo(
-    () => !!owner && !!connectedAddress && owner.toLowerCase() === connectedAddress.toLowerCase(),
-    [owner, connectedAddress],
-  );
-  const isAuth = useMemo(
-    () => !!authorizer && !!connectedAddress && authorizer.toLowerCase() === connectedAddress.toLowerCase(),
-    [authorizer, connectedAddress],
-  );
+  const { data: watchedBalance } = useReadContract({
+    abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "balanceOf",
+    args: [watchAddr as Address],
+    query: { enabled: isAddrOk(watchAddr) },
+  });
 
-  // ——— Writes ———
-  const { writeContractAsync: writeTAB } = useScaffoldWriteContract(contractName);
+  const { data: isAuthorized } = useReadContract({
+    abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "claimAuthorized",
+    args: [watchAddr as Address],
+    query: { enabled: isAddrOk(watchAddr) },
+  });
+
+  const { data: isConsumed } = useReadContract({
+    abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "claimConsumed",
+    args: [watchAddr as Address],
+    query: { enabled: isAddrOk(watchAddr) },
+  });
+
+  // Derived: jsem authorizer?
+  const isAuth = useMemo(() => {
+    const a = safeStr(authorizerAddr).toLowerCase();
+    const me = safeStr(connectedAddress).toLowerCase();
+    return !!a && !!me && a === me;
+  }, [authorizerAddr, connectedAddress]);
+
+  // --- WRITES (wagmi přímo, žádný scaffold hook = žádné "Target Contract..." chyby) ---
+  const { writeContractAsync: writeTAB } = useWriteContract();
 
   const onMint = async () => {
     try {
       if (!isAuth) throw new Error("Only the authorizer can mint.");
-      if (!mintTo || !isAddress(mintTo)) throw new Error("Enter a valid recipient address.");
-      const d = Number(decimals ?? 18);
-      const amt = parseUnits(mintAmount || "0", d);
-      await writeTAB({ functionName: "mint", args: [mintTo, amt] });
+      if (!isAddrOk(mintTo)) throw new Error("Enter a valid recipient address.");
+      const amt = parseUnits(mintAmount || "0", decimals);
+      await writeTAB({ abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "mint", args: [mintTo as Address, amt] });
       notification.success(`Mint complete: ${mintAmount} ${symbol ?? "TAB"} → ${mintTo}`);
       setMintAmount("0");
     } catch (e: any) {
-      notification.error(e?.message ?? "Mint failed");
+      notification.error(e?.shortMessage ?? e?.message ?? "Mint failed");
     }
   };
 
   const onBurn = async () => {
     try {
-      const d = Number(decimals ?? 18);
-      const amt = parseUnits(burnAmount || "0", d);
-      await writeTAB({ functionName: "burn", args: [amt] });
+      const amt = parseUnits(burnAmount || "0", decimals);
+      await writeTAB({ abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "burn", args: [amt] });
       notification.success(`Burn complete: ${burnAmount} ${symbol ?? "TAB"}`);
       setBurnAmount("0");
     } catch (e: any) {
-      notification.error(e?.message ?? "Burn failed");
+      notification.error(e?.shortMessage ?? e?.message ?? "Burn failed");
     }
   };
 
   const onAuthorize = async () => {
     try {
       if (!isAuth) throw new Error("Only the authorizer can approve a claim.");
-      if (!authAddr || !isAddress(authAddr)) throw new Error("Enter a valid address for authorization.");
-      await writeTAB({ functionName: "authorizeClaim", args: [authAddr] });
+      if (!isAddrOk(authAddr)) throw new Error("Enter a valid address for authorization.");
+      await writeTAB({ abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "authorizeClaim", args: [authAddr as Address] });
       notification.success(`Claim authorization for ${authAddr} completed.`);
     } catch (e: any) {
-      notification.error(e?.message ?? "Authorization failed");
+      notification.error(e?.shortMessage ?? e?.message ?? "Authorization failed");
     }
   };
 
   const onRevoke = async () => {
     try {
       if (!isAuth) throw new Error("Only the authorizer can revoke a claim.");
-      if (!authAddr || !isAddress(authAddr)) throw new Error("Enter a valid address to revoke authorization.");
-      await writeTAB({ functionName: "revokeClaim", args: [authAddr] });
+      if (!isAddrOk(authAddr)) throw new Error("Enter a valid address to revoke authorization.");
+      await writeTAB({ abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "revokeClaim", args: [authAddr as Address] });
       notification.success(`Claim authorization for ${authAddr} revoked.`);
     } catch (e: any) {
-      notification.error(e?.message ?? "Revocation failed");
+      notification.error(e?.shortMessage ?? e?.message ?? "Revocation failed");
     }
   };
 
   const onClaim = async () => {
     try {
-      await writeTAB({ functionName: "claim", args: [] });
-      notification.success(
-        `Claim complete: ${(Number(claimAmount ?? 0) / 10 ** Number(decimals ?? 18)).toString()} ${symbol ?? "TAB"}`,
-      );
+      await writeTAB({ abi: TAB_MIN_ABI, address: TAB_ADDRESS, functionName: "claim", args: [] });
+      const amountStr = claimAmount !== undefined ? formatUnits(claimAmount, decimals) : "0";
+      notification.success(`Claim complete: ${amountStr} ${symbol ?? "TAB"}`);
     } catch (e: any) {
-      notification.error(e?.message ?? "Claim failed");
+      notification.error(e?.shortMessage ?? e?.message ?? "Claim failed");
     }
   };
 
-  // ——— Helpers ———
-  const fmtToken = (bn?: bigint) => {
-    if (bn === undefined || bn === null) return "-";
-    const d = Number(decimals ?? 18);
-    const factor = 10 ** d;
-    const num = Number(bn) / factor;
-    return num.toLocaleString(undefined, { maximumFractionDigits: 6 });
-  };
+  // Formatter
+  const fmtToken = (bn?: bigint) => (bn === undefined || bn === null ? "-" : formatUnits(bn, decimals));
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6 text-base-content">
@@ -160,11 +147,7 @@ export default function TABcoinPage() {
       <div className="glass p-4 rounded-2xl flex items-center justify-between">
         <h1 className="text-2xl font-bold">TABcoin Console</h1>
         <div className="text-sm opacity-80">
-          {tabcoin?.address ? (
-            <span className="font-mono">Contract: {tabcoin.address}</span>
-          ) : (
-            <span className="text-warning">TABcoin contract not deployed or not loaded.</span>
-          )}
+          <span className="font-mono">Contract: {TAB_ADDRESS}</span>
         </div>
       </div>
 
@@ -173,17 +156,14 @@ export default function TABcoinPage() {
         <div className="glass p-4 rounded-2xl">
           <div className="text-xs opacity-70 mb-1">Token</div>
           <div className="text-lg font-semibold">
-            {symbol ?? "…"} ({Number(decimals ?? 18)} dec)
+            {symbol ?? "…"} ({decimals} dec)
           </div>
           <div className="mt-2 text-sm">
             <div>
-              Owner: <span className="font-mono">{owner ?? "…"}</span>
+              Authorizer: <span className="font-mono">{authorizerAddr ?? "…"}</span>
             </div>
             <div>
-              Authorizer: <span className="font-mono">{authorizer ?? "…"}</span>
-            </div>
-            <div>
-              Are you owner? <b>{isOwner ? "Yes" : "No"}</b> | Are you authorizer? <b>{isAuth ? "Yes" : "No"}</b>
+              Are you authorizer? <b>{isAuth ? "Yes" : "No"}</b>
             </div>
           </div>
         </div>
@@ -197,7 +177,7 @@ export default function TABcoinPage() {
             <div>
               Balance:{" "}
               <b>
-                {fmtToken(myBalance)} {symbol ?? "TAB"}
+                {fmtToken(myBalance as bigint | undefined)} {symbol ?? "TAB"}
               </b>
             </div>
           </div>
@@ -210,13 +190,13 @@ export default function TABcoinPage() {
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-2">
             <label className="text-xs opacity-70">Address for checking / authorization actions</label>
-            <AddressInput value={authAddr} onChange={addr => setAuthAddr(addr as Address)} placeholder="0x…" />
+            <AddressInput value={authAddr} onChange={addr => setAuthAddr(addr ?? "")} placeholder="0x…" />
             <div className="text-sm">
               <div>
-                Claim authorized? <b>{isAuthorized ? "Yes" : "No"}</b>
+                Claim authorized? <b>{(isAuthorized as boolean) ? "Yes" : "No"}</b>
               </div>
               <div>
-                Claim consumed? <b>{isConsumed ? "Yes" : "No"}</b>
+                Claim consumed? <b>{(isConsumed as boolean) ? "Yes" : "No"}</b>
               </div>
               <div>
                 CLAIM_AMOUNT:{" "}
@@ -227,10 +207,10 @@ export default function TABcoinPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 items-end">
-            <button className="btn btn-primary" onClick={onAuthorize} disabled={!isAuth || !authAddr}>
+            <button className="btn btn-primary" onClick={onAuthorize} disabled={!isAuth || !isAddrOk(authAddr)}>
               Authorize claim
             </button>
-            <button className="btn" onClick={onRevoke} disabled={!isAuth || !authAddr}>
+            <button className="btn" onClick={onRevoke} disabled={!isAuth || !isAddrOk(authAddr)}>
               Revoke authorization
             </button>
             <button className="btn btn-accent" onClick={onClaim} disabled={!connectedAddress}>
@@ -245,10 +225,10 @@ export default function TABcoinPage() {
         <div className="glass p-4 rounded-2xl space-y-3">
           <div className="text-lg font-semibold">Mint (authorizer only)</div>
           <label className="text-xs opacity-70">Recipient</label>
-          <AddressInput value={mintTo} onChange={addr => setMintTo(addr as Address)} placeholder="0x…" />
+          <AddressInput value={mintTo} onChange={addr => setMintTo(addr ?? "")} placeholder="0x…" />
           <label className="text-xs opacity-70">Amount ({symbol ?? "TAB"})</label>
-          <IntegerInput value={mintAmount} onChange={val => setMintAmount(val || "0")} placeholder="0" />
-          <button className="btn btn-primary w-full" onClick={onMint} disabled={!isAuth}>
+          <IntegerInput value={mintAmount} onChange={val => setMintAmount(val ?? "0")} placeholder="0" />
+          <button className="btn btn-primary w-full" onClick={onMint} disabled={!isAuth || !isAddrOk(mintTo)}>
             Mint
           </button>
         </div>
@@ -256,7 +236,7 @@ export default function TABcoinPage() {
         <div className="glass p-4 rounded-2xl space-y-3">
           <div className="text-lg font-semibold">Burn</div>
           <label className="text-xs opacity-70">Amount to burn ({symbol ?? "TAB"})</label>
-          <IntegerInput value={burnAmount} onChange={val => setBurnAmount(val || "0")} placeholder="0" />
+          <IntegerInput value={burnAmount} onChange={val => setBurnAmount(val ?? "0")} placeholder="0" />
           <button className="btn w-full" onClick={onBurn} disabled={!connectedAddress}>
             Burn
           </button>
@@ -267,9 +247,9 @@ export default function TABcoinPage() {
       <div className="glass p-4 rounded-2xl">
         <div className="text-lg font-semibold mb-2">Watched address status</div>
         <div className="text-sm">
-          Address: <span className="font-mono">{watchAddr ?? "-"}</span> — Balance:{" "}
+          Address: <span className="font-mono">{watchAddr || "-"}</span> — Balance:{" "}
           <b>
-            {fmtToken(watchedBalance)} {symbol ?? "TAB"}
+            {fmtToken(watchedBalance as bigint | undefined)} {symbol ?? "TAB"}
           </b>
         </div>
       </div>

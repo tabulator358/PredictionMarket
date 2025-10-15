@@ -1,31 +1,35 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import { ERC20BurnableUpgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
 
-/// @title PredictionToken (YES/NO per sázka)
-/// @notice Minterem je kontrakt PredictionMarket, který token deploynul.
-///         - mint: volá pouze PredictionMarket při fundování
-///         - burnFrom: používá se při redeem (po approve)
-contract PredictionToken is ERC20, ERC20Burnable {
-    /// @dev adresa, která smí volat mint (PredictionMarket)
-    address public immutable minter;
+/**
+ * @title PredictionTokenImpl
+ * @notice Implementace ERC20 pro EIP-1167 klony (YES/NO tokeny).
+ *         - ŽÁDNÝ konstruktor; místo něj initialize(...)
+ *         - Mint smí pouze `market`
+ */
+contract PredictionTokenImpl is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable {
+    address public market;
 
-    /// @param name_   plné jméno tokenu (např. "YES#0 Vyhraje tým A?")
-    /// @param symbol_ symbol tokenu (např. "YES0")
-    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {
-        minter = msg.sender; // při `new` je to PredictionMarket
-    }
-
-    modifier onlyMinter() {
-        require(msg.sender == minter, "Not authorized");
+    modifier onlyMarket() {
+        require(msg.sender == market, "not market");
         _;
     }
 
-    /// @notice Mint pro uživatele (1 wei vkladu = 1 token)
-    /// @dev volá výhradně PredictionMarket
-    function mint(address to, uint256 amount) external onlyMinter {
+    /**
+     * @dev Volá se JEDNOU na každém klonu po jeho vytvoření.
+     */
+    function initialize(string memory name_, string memory symbol_, address market_) external initializer {
+        __ERC20_init(name_, symbol_);
+        __ERC20Burnable_init();
+        market = market_;
+    }
+
+    function mint(address to, uint256 amount) external onlyMarket {
         _mint(to, amount);
     }
 }
+

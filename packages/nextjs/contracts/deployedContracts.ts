@@ -6,17 +6,413 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 
 const deployedContracts = {
   31337: {
-    TABcoin: {
-      address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    PredictionMarketERC20: {
+      address: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
       abi: [
         {
           inputs: [
             {
-              internalType: "address",
-              name: "_authorizer",
+              internalType: "contract IERC20",
+              name: "_collateral",
               type: "address",
             },
           ],
+          stateMutability: "nonpayable",
+          type: "constructor",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "target",
+              type: "address",
+            },
+          ],
+          name: "AddressEmptyCode",
+          type: "error",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "account",
+              type: "address",
+            },
+          ],
+          name: "AddressInsufficientBalance",
+          type: "error",
+        },
+        {
+          inputs: [],
+          name: "FailedInnerCall",
+          type: "error",
+        },
+        {
+          inputs: [],
+          name: "ReentrancyGuardReentrantCall",
+          type: "error",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "token",
+              type: "address",
+            },
+          ],
+          name: "SafeERC20FailedOperation",
+          type: "error",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "id",
+              type: "uint256",
+            },
+            {
+              indexed: false,
+              internalType: "string",
+              name: "description",
+              type: "string",
+            },
+            {
+              indexed: false,
+              internalType: "address",
+              name: "yesToken",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "address",
+              name: "noToken",
+              type: "address",
+            },
+          ],
+          name: "BetCreated",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "id",
+              type: "uint256",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "user",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "amount",
+              type: "uint256",
+            },
+          ],
+          name: "BetFunded",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "id",
+              type: "uint256",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "outcome1e18",
+              type: "uint256",
+            },
+          ],
+          name: "BetResolved",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "id",
+              type: "uint256",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "user",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "bool",
+              name: "isYes",
+              type: "bool",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "burnedTokens",
+              type: "uint256",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "paidAmount",
+              type: "uint256",
+            },
+          ],
+          name: "Redeemed",
+          type: "event",
+        },
+        {
+          stateMutability: "payable",
+          type: "fallback",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "_betId",
+              type: "uint256",
+            },
+            {
+              internalType: "address",
+              name: "user",
+              type: "address",
+            },
+          ],
+          name: "balancesOf",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "yesBalance",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "noBalance",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "poolCollateral",
+              type: "uint256",
+            },
+            {
+              internalType: "bool",
+              name: "isResolved",
+              type: "bool",
+            },
+            {
+              internalType: "uint256",
+              name: "outcome1e18",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "betCount",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          name: "bets",
+          outputs: [
+            {
+              internalType: "string",
+              name: "description",
+              type: "string",
+            },
+            {
+              internalType: "address",
+              name: "creator",
+              type: "address",
+            },
+            {
+              internalType: "address",
+              name: "yesToken",
+              type: "address",
+            },
+            {
+              internalType: "address",
+              name: "noToken",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "totalCollateral",
+              type: "uint256",
+            },
+            {
+              internalType: "bool",
+              name: "resolved",
+              type: "bool",
+            },
+            {
+              internalType: "uint256",
+              name: "outcome1e18",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "collateral",
+          outputs: [
+            {
+              internalType: "contract IERC20",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "string",
+              name: "_description",
+              type: "string",
+            },
+          ],
+          name: "createBet",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "betId",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "_betId",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "amount",
+              type: "uint256",
+            },
+          ],
+          name: "fundBet",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "_betId",
+              type: "uint256",
+            },
+          ],
+          name: "getBetTokens",
+          outputs: [
+            {
+              internalType: "address",
+              name: "yes",
+              type: "address",
+            },
+            {
+              internalType: "address",
+              name: "no",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "_betId",
+              type: "uint256",
+            },
+            {
+              internalType: "bool",
+              name: "isYes",
+              type: "bool",
+            },
+            {
+              internalType: "uint256",
+              name: "amountTokens",
+              type: "uint256",
+            },
+          ],
+          name: "redeem",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "_betId",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "outcome1e18",
+              type: "uint256",
+            },
+          ],
+          name: "resolveBet",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          stateMutability: "payable",
+          type: "receive",
+        },
+      ],
+      inheritedFunctions: {},
+      deployedOnBlock: 5,
+    },
+    TABcoin: {
+      address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      abi: [
+        {
+          inputs: [],
           stateMutability: "nonpayable",
           type: "constructor",
         },
@@ -107,28 +503,6 @@ const deployedContracts = {
           type: "error",
         },
         {
-          inputs: [
-            {
-              internalType: "address",
-              name: "owner",
-              type: "address",
-            },
-          ],
-          name: "OwnableInvalidOwner",
-          type: "error",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "account",
-              type: "address",
-            },
-          ],
-          name: "OwnableUnauthorizedAccount",
-          type: "error",
-        },
-        {
           anonymous: false,
           inputs: [
             {
@@ -159,20 +533,7 @@ const deployedContracts = {
             {
               indexed: true,
               internalType: "address",
-              name: "newAuthorizer",
-              type: "address",
-            },
-          ],
-          name: "AuthorizerUpdated",
-          type: "event",
-        },
-        {
-          anonymous: false,
-          inputs: [
-            {
-              indexed: true,
-              internalType: "address",
-              name: "recipient",
+              name: "user",
               type: "address",
             },
           ],
@@ -185,20 +546,7 @@ const deployedContracts = {
             {
               indexed: true,
               internalType: "address",
-              name: "recipient",
-              type: "address",
-            },
-          ],
-          name: "ClaimRevoked",
-          type: "event",
-        },
-        {
-          anonymous: false,
-          inputs: [
-            {
-              indexed: true,
-              internalType: "address",
-              name: "recipient",
+              name: "user",
               type: "address",
             },
             {
@@ -217,17 +565,17 @@ const deployedContracts = {
             {
               indexed: true,
               internalType: "address",
-              name: "previousOwner",
+              name: "to",
               type: "address",
             },
             {
-              indexed: true,
-              internalType: "address",
-              name: "newOwner",
-              type: "address",
+              indexed: false,
+              internalType: "uint256",
+              name: "amount",
+              type: "uint256",
             },
           ],
-          name: "OwnershipTransferred",
+          name: "Minted",
           type: "event",
         },
         {
@@ -254,6 +602,19 @@ const deployedContracts = {
           ],
           name: "Transfer",
           type: "event",
+        },
+        {
+          inputs: [],
+          name: "AUTHORIZER",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
         },
         {
           inputs: [],
@@ -320,26 +681,13 @@ const deployedContracts = {
           inputs: [
             {
               internalType: "address",
-              name: "recipient",
+              name: "user",
               type: "address",
             },
           ],
           name: "authorizeClaim",
           outputs: [],
           stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "authorizer",
-          outputs: [
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-          ],
-          stateMutability: "view",
           type: "function",
         },
         {
@@ -483,52 +831,6 @@ const deployedContracts = {
         },
         {
           inputs: [],
-          name: "owner",
-          outputs: [
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "renounceOwnership",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "recipient",
-              type: "address",
-            },
-          ],
-          name: "revokeClaim",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "_authorizer",
-              type: "address",
-            },
-          ],
-          name: "setAuthorizer",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [],
           name: "symbol",
           outputs: [
             {
@@ -606,19 +908,6 @@ const deployedContracts = {
           stateMutability: "nonpayable",
           type: "function",
         },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "newOwner",
-              type: "address",
-            },
-          ],
-          name: "transferOwnership",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
       ],
       inheritedFunctions: {
         allowance:
@@ -641,9 +930,6 @@ const deployedContracts = {
         burn: "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol",
         burnFrom:
           "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol",
-        owner: "@openzeppelin/contracts/access/Ownable.sol",
-        renounceOwnership: "@openzeppelin/contracts/access/Ownable.sol",
-        transferOwnership: "@openzeppelin/contracts/access/Ownable.sol",
       },
       deployedOnBlock: 1,
     },
