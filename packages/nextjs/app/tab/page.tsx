@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Address, formatUnits, isAddress, parseUnits } from "viem";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { Address as AddressComp } from "~~/components/scaffold-eth/Address/Address";
 import { AddressInput, IntegerInput } from "~~/components/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
@@ -26,7 +27,7 @@ export default function TABcoinPage() {
   const { address: connectedAddress } = useAccount();
 
   // —— Hardcoded Sepolia address ——
-  const TAB_ADDRESS = "0x9F3BF1e7206A8F5012C2891FdC031B818e2f016d" as Address;
+  const TAB_ADDRESS = "0x9285A9185649cfFDE9Ee5002249525B6049ab29d" as Address;
 
   // ——— Local UI state ———
   const [mintTo, setMintTo] = useState<string>("");
@@ -145,7 +146,7 @@ export default function TABcoinPage() {
     <div className="max-w-4xl mx-auto p-6 space-y-6 text-base-content">
       {/* Header */}
       <div className="glass p-4 rounded-2xl flex items-center justify-between">
-        <h1 className="text-2xl font-bold">TABcoin Console</h1>
+        <h1 className="text-2xl font-bold">Tabcoin – 1st offchain collateralised CZK</h1>
         <div className="text-sm opacity-80">
           <span className="font-mono">Contract: {TAB_ADDRESS}</span>
         </div>
@@ -246,11 +247,17 @@ export default function TABcoinPage() {
       {/* Watch balance of any address */}
       <div className="glass p-4 rounded-2xl">
         <div className="text-lg font-semibold mb-2">Watched address status</div>
-        <div className="text-sm">
-          Address: <span className="font-mono">{watchAddr || "-"}</span> — Balance:{" "}
-          <b>
-            {fmtToken(watchedBalance as bigint | undefined)} {symbol ?? "TAB"}
-          </b>
+        <div className="text-sm space-y-2">
+          <div className="opacity-80">Address:</div>
+          <div>
+            {isAddrOk(watchAddr) ? (
+              <AddressComp address={watchAddr as Address} format="long" size="sm" />
+            ) : (
+              <span className="font-mono">-</span>
+            )}
+          </div>
+          <div className="opacity-80 mt-2">Balance:</div>
+          <div className="font-mono">{fmtToken(watchedBalance as bigint | undefined)} {symbol ?? "TAB"}</div>
         </div>
       </div>
     </div>

@@ -10,6 +10,9 @@ import {
   useWalletClient,
   useWriteContract,
 } from "wagmi";
+import { notification } from "~~/utils/scaffold-eth/notification";
+import { Address as AddressComp } from "~~/components/scaffold-eth/Address/Address";
+import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 
 /**
  * Scalar Prediction Market (ERC20)
@@ -18,8 +21,8 @@ import {
  */
 
 // ---------------------- Constants ----------------------
-const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_PREDICTION_ADDRESS as Address) ??
-  ("0xd242dCD11917cB8E98435b9c0c0ADBFdF8DBC114" as Address); // TODO: nastav sem pevnou adresu kontraktu na Sepolii
+const ENV_MARKET_ADDRESS = process.env.NEXT_PUBLIC_PREDICTION_ADDRESS as Address | undefined;
+const DEFAULT_MARKET_ADDRESS = "0x7e64388dC9f33a99156535e5d079F07BA497AFff" as Address; // Sepolia fallback
 
 // ---------------------- ABIs ----------------------
 const PREDICTION_ABI = [
@@ -106,6 +109,7 @@ const PREDICTION_ABI = [
 const ERC20_ABI = [
   { name: "decimals", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
   { name: "symbol", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+  { name: "balanceOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
   {
     name: "approve",
     stateMutability: "nonpayable",
@@ -133,11 +137,13 @@ function toOutcome1e18(x: string) {
   return BigInt(Math.floor(clamped * 1e18));
 }
 
-async function fetchTokenMeta(pc: ReturnType<typeof usePublicClient>["data"], address: Address) {
+type PublicClientLike = { readContract: (args: any) => Promise<any> };
+
+async function fetchTokenMeta(pc: PublicClientLike, address: Address) {
   try {
     const [dec, sym] = await Promise.all([
-      pc!.readContract({ address, abi: ERC20_ABI, functionName: "decimals" }) as Promise<number>,
-      pc!.readContract({ address, abi: ERC20_ABI, functionName: "symbol" }) as Promise<string>,
+      pc.readContract({ address, abi: ERC20_ABI, functionName: "decimals" }) as Promise<number>,
+      pc.readContract({ address, abi: ERC20_ABI, functionName: "symbol" }) as Promise<string>,
     ]);
     return { decimals: dec, symbol: sym };
   } catch {
@@ -150,10 +156,20 @@ export default function PredictionPage() {
   const { address } = useAccount();
   const { data: wc } = useWalletClient();
   const pc = usePublicClient();
+  const { data: marketInfo } = useDeployedContractInfo("PredictionMarketERC20");
+
+  const marketAddress = useMemo(() => {
+    return (
+      (ENV_MARKET_ADDRESS as Address | undefined) ||
+      (marketInfo?.address as Address | undefined) ||
+      DEFAULT_MARKET_ADDRESS
+    );
+  }, [ENV_MARKET_ADDRESS, marketInfo?.address]);
+  const isMarketReady = !!marketAddress;
 
   // Collateral meta
   const { data: collateralAddr } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: isMarketReady ? (marketAddress as Address) : undefined,
     abi: PREDICTION_ABI,
     functionName: "collateral",
   });
@@ -179,23 +195,33 @@ export default function PredictionPage() {
 
   // ---------------------- Reads ----------------------
   const { data: betCount } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: isMarketReady ? (marketAddress as Address) : undefined,
     abi: PREDICTION_ABI,
     functionName: "betCount",
   });
 
   const { data: betTuple } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: isMarketReady ? (marketAddress as Address) : undefined,
     abi: PREDICTION_ABI,
     functionName: "bets",
     args: [BigInt(betIdNum || 0)],
   });
 
   const { data: balancesTuple } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: isMarketReady ? (marketAddress as Address) : undefined,
     abi: PREDICTION_ABI,
     functionName: "balancesOf",
     args: [BigInt(betIdNum || 0), (address ?? zeroAddress) as Address],
+  });
+
+  // Collateral balance for connected wallet
+  const { data: collateralBal } = useReadContract({
+    address: collateralAddr as Address,
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: [((address ?? zeroAddress) as Address)],
+    // Only run when collateral address and user address are available
+    // Note: hook will no-op if address is undefined
   });
 
   // načti metadata kolaterálu (decimals + symbol)
@@ -217,9 +243,10 @@ export default function PredictionPage() {
   const { isLoading: txLoading } = useWaitForTransactionReceipt({ hash: txHash });
 
   async function onCreateBet() {
+    if (!isMarketReady) return notification.error("Contract address not found. Run yarn deploy or set NEXT_PUBLIC_PREDICTION_ADDRESS.");
     if (!newDesc) return;
     await writeContractAsync({
-      address: CONTRACT_ADDRESS,
+      address: marketAddress as Address,
       abi: PREDICTION_ABI,
       functionName: "createBet",
       args: [newDesc],
@@ -228,41 +255,55 @@ export default function PredictionPage() {
   }
 
   async function onFundBet() {
-    if (!fundAmount) return;
-    const id = BigInt(Number(fundBetId || 0));
+    try {
+      if (!isMarketReady) throw new Error("Contract address not found. Run yarn deploy or set NEXT_PUBLIC_PREDICTION_ADDRESS.");
+      if (!address) throw new Error("Připoj peněženku.");
+      if (!wc || !pc) throw new Error("Klient není inicializován, zkus stránku znovu načíst.");
+      if (!collateralAddr) throw new Error("Kolaterál není načtený.");
+      if (!fundAmount) throw new Error("Zadej částku.");
 
-    // approve kolaterál -> kontrakt
-    const d =
-      (await pc!.readContract({
+      const idNum = Number(fundBetId || 0);
+      if (!Number.isFinite(idNum) || idNum < 0) throw new Error("Neplatné Bet ID.");
+      const id = BigInt(idNum);
+
+      // approve kolaterál -> kontrakt
+      const d =
+        (await pc.readContract({
+          address: collateralAddr as Address,
+          abi: ERC20_ABI,
+          functionName: "decimals",
+        })) || 18;
+      const amountRaw = parseUnits(fundAmount, Number(d));
+
+      const approveHash = await wc.writeContract({
         address: collateralAddr as Address,
         abi: ERC20_ABI,
-        functionName: "decimals",
-      })) || 18;
-    const amountRaw = parseUnits(fundAmount, Number(d));
+        functionName: "approve",
+        args: [marketAddress as Address, amountRaw],
+        account: address,
+      });
+      await pc.waitForTransactionReceipt({ hash: approveHash });
 
-    const approveHash = await wc!.writeContract({
-      address: collateralAddr as Address,
-      abi: ERC20_ABI,
-      functionName: "approve",
-      args: [CONTRACT_ADDRESS, amountRaw],
-      account: address!,
-      chain: await wc!.getChainId(),
-    });
-    await pc!.waitForTransactionReceipt({ hash: approveHash });
+      await writeContractAsync({
+        address: marketAddress as Address,
+        abi: PREDICTION_ABI,
+        functionName: "fundBet",
+        args: [id, amountRaw],
+      });
 
-    await writeContractAsync({
-      address: CONTRACT_ADDRESS,
-      abi: PREDICTION_ABI,
-      functionName: "fundBet",
-      args: [id, amountRaw],
-    });
+      notification.success("Schváleno a odesláno financování.");
+      setFundAmount("");
+    } catch (e: any) {
+      notification.error(e?.shortMessage ?? e?.message ?? "Approve & Fund selhalo");
+    }
   }
 
   async function onResolveBet() {
+    if (!isMarketReady) return notification.error("Contract address not found. Run yarn deploy or set NEXT_PUBLIC_PREDICTION_ADDRESS.");
     const id = BigInt(Number(resBetId || 0));
     const outcome = toOutcome1e18(outcomeTxt);
     await writeContractAsync({
-      address: CONTRACT_ADDRESS,
+      address: marketAddress as Address,
       abi: PREDICTION_ABI,
       functionName: "resolveBet",
       args: [id, outcome],
@@ -270,10 +311,11 @@ export default function PredictionPage() {
   }
 
   async function onRedeem() {
+    if (!isMarketReady) return notification.error("Contract address not found. Run yarn deploy or set NEXT_PUBLIC_PREDICTION_ADDRESS.");
     if (!redeemAmount) return;
     const id = BigInt(Number(redBetId || 0));
     const [yes, no] = (await pc!.readContract({
-      address: CONTRACT_ADDRESS,
+      address: marketAddress as Address,
       abi: PREDICTION_ABI,
       functionName: "getBetTokens",
       args: [id],
@@ -288,14 +330,13 @@ export default function PredictionPage() {
       address: token,
       abi: ERC20_ABI,
       functionName: "approve",
-      args: [CONTRACT_ADDRESS, amountRaw],
+      args: [marketAddress as Address, amountRaw],
       account: address!,
-      chain: await wc!.getChainId(),
     });
     await pc!.waitForTransactionReceipt({ hash: approveHash });
 
     await writeContractAsync({
-      address: CONTRACT_ADDRESS,
+      address: marketAddress as Address,
       abi: PREDICTION_ABI,
       functionName: "redeem",
       args: [id, isYes, amountRaw],
@@ -309,18 +350,23 @@ export default function PredictionPage() {
   return (
     <div className="max-w-6xl mx-auto p-6 md:p-10 space-y-8 text-base-content">
       <div className="glass p-6 rounded-2xl">
-        <h1 className="text-3xl font-bold">Scalar Prediction Market (ERC20)</h1>
+        <h1 className="text-3xl font-bold">Tab Prediction Market</h1>
         <p className="opacity-80 mt-1">
           Uses a fixed <code>PredictionMarketERC20</code> contract.
         </p>
 
         <div className="mt-3 text-sm">
-          <div>Contract: <span className="font-mono">{CONTRACT_ADDRESS}</span></div>
+          <div>Contract: <span className="font-mono">{marketAddress ?? "-"}</span></div>
           <div>Collateral: <span className="font-mono">{collateralAddr ? (collateralAddr as string) : "-"}</span></div>
           <div>
             Total bets: <span className="font-mono">{betCount?.toString() ?? "-"}</span>
           </div>
         </div>
+        {!isMarketReady && (
+          <div className="alert alert-warning mt-3">
+            Contract address not detected. Deploy locally (yarn chain && yarn deploy) or set NEXT_PUBLIC_PREDICTION_ADDRESS.
+          </div>
+        )}
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
@@ -341,7 +387,11 @@ export default function PredictionPage() {
           <input className={inputCls} value={fundBetId} onChange={e => setFundBetId(e.target.value)} />
           <label className="text-sm opacity-70 mt-2">Amount ({collatSymbol})</label>
           <input className={inputCls} value={fundAmount} onChange={e => setFundAmount(e.target.value)} />
-          <button className="btn btn-primary w-full mt-3" onClick={onFundBet} disabled={!fundAmount || isPending}>
+          <button
+            className="btn btn-primary w-full mt-3"
+            onClick={onFundBet}
+            disabled={!fundAmount || !address || !collateralAddr || !isMarketReady || isPending}
+          >
             {isPending || txLoading ? "Sending…" : "Approve & Fund"}
           </button>
         </Card>
@@ -384,11 +434,27 @@ export default function PredictionPage() {
         <div className="grid md:grid-cols-2 gap-3 mt-3">
           <div className="glass p-3 rounded-xl">
             <div className="text-xs opacity-70 mb-1">YES / NO</div>
-            <div className="font-mono text-sm break-all">
+            <div className="text-sm break-all space-y-2">
               {betTuple ? (
                 <>
-                  <div>YES: {trimAddr((betTuple as any)[2])}</div>
-                  <div>NO: {trimAddr((betTuple as any)[3])}</div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="opacity-80">YES:</span>
+                    <div className="flex-1 flex items-center justify-end gap-3">
+                      <AddressComp address={(betTuple as any)[2]} format="long" size="sm" />
+                      {balancesTuple !== undefined && (
+                        <span className="font-mono">{formatUnits((balancesTuple as any)[0] as bigint, 18)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="opacity-80">NO:</span>
+                    <div className="flex-1 flex items-center justify-end gap-3">
+                      <AddressComp address={(betTuple as any)[3]} format="long" size="sm" />
+                      {balancesTuple !== undefined && (
+                        <span className="font-mono">{formatUnits((balancesTuple as any)[1] as bigint, 18)}</span>
+                      )}
+                    </div>
+                  </div>
                 </>
               ) : (
                 "-"
@@ -410,23 +476,24 @@ export default function PredictionPage() {
           </div>
         </div>
 
-        {balancesTuple && (
+        {balancesTuple ? (
           <div className="glass p-3 rounded-xl mt-3">
             <div className="text-xs opacity-70 mb-1">Your balances</div>
             <div className="text-sm font-mono">
               YES: {formatUnits((balancesTuple as any)[0] as bigint, 18)} | NO:{" "}
               {formatUnits((balancesTuple as any)[1] as bigint, 18)} | Pool:{" "}
               {formatUnits((balancesTuple as any)[2] as bigint, decimals)} {collatSymbol}
+              {" "}| Collateral: {collateralBal !== undefined ? formatUnits(collateralBal as bigint, decimals) : "-"} {collatSymbol}
             </div>
           </div>
-        )}
+        ) : null}
       </Card>
 
       {txHash && (
         <div className="text-sm opacity-70">
           Tx:{" "}
-          <a className="underline" target="_blank" href={`https://sepolia.etherscan.io/tx/${txHash}`} rel="noreferrer">
-            {txHash}
+          <a className="underline" target="_blank" href={`https://sepolia.etherscan.io/tx/${String(txHash)}`} rel="noreferrer">
+            {String(txHash)}
           </a>
         </div>
       )}

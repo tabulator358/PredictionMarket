@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/release-v5.0/contracts/proxy/Clones.sol";
-import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/release-v5.0/contracts/token/ERC20/IERC20.sol";
-import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/release-v5.0/contracts/token/ERC20/utils/SafeERC20.sol";
-import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/release-v5.0/contracts/utils/ReentrancyGuard.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 interface IPredictionTokenInitMint {
     function initialize(string memory name_, string memory symbol_, address market_) external;

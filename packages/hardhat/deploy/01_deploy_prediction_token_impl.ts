@@ -3,19 +3,16 @@ import { DeployFunction } from "hardhat-deploy/types";
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts } = hre;
-  const { deploy, get } = deployments;
+  const { deploy } = deployments;
   const { deployer } = await getNamedAccounts();
 
-  const tab = await get("TABcoin");
-  const tokenImpl = await get("PredictionTokenImpl");
-
-  await deploy("PredictionMarketERC20", {
+  await deploy("PredictionTokenImpl", {
     from: deployer,
-    args: [tab.address, tokenImpl.address],
+    args: [],
     log: true,
     autoMine: true,
   });
 };
 export default func;
-func.tags = ["PredictionMarket"];
-func.dependencies = ["TABcoin", "PredictionTokenImpl"];
+func.tags = ["PredictionTokenImpl"];
+
