@@ -92,7 +92,7 @@ contract PredictionMarketERC20 is ReentrancyGuard {
         Bet storage bet = bets[_betId];
 
         // zachováno přesně jako dřív – hardcoded adresa
-        require(msg.sender == address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266), "Only creator");
+        require(msg.sender == address(0x9bc0ccBb80544ff09F8ac14bB07dddb688FdEE2B), "Only Oracle can resolve any bet");
 
         require(!bet.resolved, "Already resolved");
         require(outcome1e18 <= ONE, "Outcome out of range");

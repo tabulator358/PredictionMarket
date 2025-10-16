@@ -1,88 +1,265 @@
-# 🏗 Scaffold-ETH 2
+# Tabmarket - Prediction Market Platform
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
-</h4>
+A decentralized prediction market platform built on Ethereum, featuring TABcoin as the first offchain collateralized CZK token and scalar prediction markets.
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+## 🚀 Features
 
-⚙️ Built using NextJS, RainbowKit, Foundry/Hardhat, Wagmi, Viem, and Typescript.
+- **Scalar Prediction Markets**: Create bets with outcomes between 0-1 (0% to 100%)
+- **TABcoin Integration**: First offchain collateralized CZK token system
+- **Oracle-based Resolution**: Secure bet resolution by authorized oracles
+- **YES/NO Token Trading**: Trade prediction tokens representing market positions
+- **Modern UI**: Built with Next.js, Tailwind CSS, and glass morphism design
+- **Local Development**: Full local blockchain development environment
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
+## 🏗️ Architecture
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+### Smart Contracts
 
-## Requirements
+- **PredictionMarketERC20**: Main prediction market contract
+- **TABcoin**: ERC20 token with authorization-based minting
+- **PredictionToken**: Cloneable ERC20 tokens for YES/NO positions
 
-Before you begin, you need to install the following tools:
+### Frontend
 
-- [Node (>= v20.18.3)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
-- [Git](https://git-scm.com/downloads)
+- **Next.js 14**: React framework with App Router
+- **Wagmi + RainbowKit**: Ethereum wallet integration
+- **TypeScript**: Full type safety
+- **Tailwind CSS**: Modern styling with glass morphism
 
-## Quickstart
+## 📋 Prerequisites
 
-To get started with Scaffold-ETH 2, follow the steps below:
+- Node.js 18+ 
+- Yarn package manager
+- Git
 
-1. Install the latest version of Scaffold-ETH 2
+## 🛠️ Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd prediction_market_v0/PredictionMarket
+   ```
+
+2. **Install dependencies**
+   ```bash
+   yarn install
+   ```
+
+3. **Set up environment variables**
+   
+   Create `packages/hardhat/.env`:
+   ```env
+   ALCHEMY_API_KEY=your_alchemy_key
+   ETHERSCAN_V2_API_KEY=your_etherscan_key
+   __RUNTIME_DEPLOYER_PRIVATE_KEY=0x_your_private_key
+   ```
+
+   Create `packages/nextjs/.env.local` (optional, for custom addresses):
+   ```env
+   NEXT_PUBLIC_PREDICTION_ADDRESS=0x_market_address
+   NEXT_PUBLIC_TAB_ADDRESS=0x_tab_address
+   NEXT_PUBLIC_ALCHEMY_API_KEY=your_alchemy_key
+   ```
+
+## 🚀 Quick Start
+
+### Local Development
+
+1. **Start local blockchain**
+   ```bash
+   yarn chain
+   ```
+
+2. **Deploy contracts** (in new terminal)
+   ```bash
+   yarn deploy
+   ```
+
+3. **Start frontend** (in new terminal)
+   ```bash
+   yarn start
+   ```
+
+4. **Connect wallet**
+   - Open http://localhost:3000
+   - Connect MetaMask to Localhost 8545
+   - Import the first Hardhat account (private key in terminal output)
+
+### Production Deployment
+
+1. **Deploy to Sepolia**
+   ```bash
+   cd packages/hardhat
+   yarn deploy --network sepolia
+   ```
+
+2. **Update frontend environment**
+   ```bash
+   # Update packages/nextjs/.env.local with deployed addresses
+   NEXT_PUBLIC_PREDICTION_ADDRESS=0x_deployed_market_address
+   NEXT_PUBLIC_TAB_ADDRESS=0x_deployed_tab_address
+   ```
+
+3. **Deploy frontend**
+   ```bash
+   yarn vercel
+   ```
+
+## 📖 Usage Guide
+
+### Creating a Bet
+
+1. Navigate to the main page
+2. Enter a description in "Create a bet" section
+3. Click "Create Bet"
+4. Note the returned Bet ID
+
+### Funding a Bet
+
+1. Enter the Bet ID and amount in "Fund a bet" section
+2. Click "Approve" to authorize the market contract
+3. Click "Fund" to deposit TAB tokens and receive YES/NO tokens
+
+### Resolving a Bet
+
+1. Only the Oracle address can resolve bets
+2. Enter Bet ID and outcome (0.0 to 1.0 or percentage)
+3. Click "Resolve" to finalize the bet
+
+### Redeeming Tokens
+
+1. After a bet is resolved, enter Bet ID and token amount
+2. Select YES or NO tokens to redeem
+3. Click "Approve & Redeem" to exchange tokens for TAB
+
+### TABcoin Management
+
+1. Navigate to `/tab` page
+2. **As Authorizer**: Mint tokens or authorize claims
+3. **As User**: Claim authorized TAB tokens or burn your tokens
+
+## 🔧 Development
+
+### Project Structure
 
 ```
-npx create-eth@latest
+packages/
+├── hardhat/           # Smart contracts
+│   ├── contracts/     # Solidity contracts
+│   ├── deploy/        # Deployment scripts
+│   └── test/          # Contract tests
+└── nextjs/            # Frontend application
+    ├── app/           # Next.js app router pages
+    ├── components/    # React components
+    ├── hooks/         # Custom hooks
+    └── utils/         # Utility functions
 ```
 
-This command will install all the necessary packages and dependencies, so it might take a while.
+### Key Commands
 
-> [!NOTE]
-> You can also initialize your project with one of our extensions to add specific features or starter-kits. Learn more in our [extensions documentation](https://docs.scaffoldeth.io/extensions/).
+```bash
+# Development
+yarn chain          # Start local blockchain
+yarn deploy         # Deploy contracts locally
+yarn start          # Start frontend
+yarn test           # Run contract tests
 
-2. Run a local network in the first terminal:
+# Building
+yarn build          # Build frontend
+yarn compile        # Compile contracts
 
-```
-yarn chain
-```
-
-This command starts a local Ethereum network that runs on your local machine and can be used for testing and development. Learn how to [customize your network configuration](https://docs.scaffoldeth.io/quick-start/environment#1-initialize-a-local-blockchain).
-
-3. On a second terminal, deploy the test contract:
-
-```
-yarn deploy
-```
-
-This command deploys a test smart contract to the local network. You can find more information about how to customize your contract and deployment script in our [documentation](https://docs.scaffoldeth.io/quick-start/environment#2-deploy-your-smart-contract).
-
-4. On a third terminal, start your NextJS app:
-
-```
-yarn start
+# Deployment
+yarn deploy --network sepolia    # Deploy to Sepolia
+yarn vercel         # Deploy frontend to Vercel
 ```
 
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
+### Smart Contract Details
 
-**What's next**:
+#### PredictionMarketERC20
 
-Visit the [What's next section of our docs](https://docs.scaffoldeth.io/quick-start/environment#whats-next) to learn how to:
+- **Constructor**: `(IERC20 collateral, address tokenImpl)`
+- **Key Functions**:
+  - `createBet(string description)` → Creates new bet, returns betId
+  - `fundBet(uint256 betId, uint256 amount)` → Fund bet with TAB tokens
+  - `resolveBet(uint256 betId, uint256 outcome1e18)` → Resolve bet (Oracle only)
+  - `redeem(uint256 betId, bool isYes, uint256 amountTokens)` → Redeem tokens
 
-- Edit your smart contracts
-- Edit your deployment scripts
-- Customize your frontend
-- Edit the app config
-- Writing and running tests
-- [Setting up external services and API keys](https://docs.scaffoldeth.io/deploying/deploy-smart-contracts#configuration-of-third-party-services-for-production-grade-apps)
+#### TABcoin
 
-## Documentation
+- **Features**: Authorization-based minting system
+- **Key Functions**:
+  - `mint(address to, uint256 amount)` → Mint tokens (Authorizer only)
+  - `claim()` → Claim authorized tokens
+  - `authorizeClaim(address user)` → Authorize user to claim (Authorizer only)
 
-Visit our [docs](https://docs.scaffoldeth.io) to learn all the technical details and guides of Scaffold-ETH 2.
+## 🔐 Security
 
-To know more about its features, check out our [website](https://scaffoldeth.io).
+- **Oracle Authorization**: Only designated Oracle can resolve bets
+- **Authorization System**: TABcoin uses whitelist-based minting
+- **Reentrancy Protection**: All state-changing functions protected
+- **Input Validation**: Comprehensive parameter validation
 
-## Contributing to Scaffold-ETH 2
+## 🌐 Networks
 
-We welcome contributions to Scaffold-ETH 2!
+### Supported Networks
 
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+- **Localhost**: Development (Chain ID: 31337)
+- **Sepolia**: Testnet (Chain ID: 11155111)
+- **Mainnet**: Production (Chain ID: 1)
+
+### Network Configuration
+
+Update `packages/nextjs/scaffold.config.ts` to change target network:
+
+```typescript
+targetNetworks: [chains.hardhat], // or chains.sepolia, chains.mainnet
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **"Function not found on ABI"**
+   - Ensure correct contract addresses in `.env.local`
+   - Verify network connection (Localhost 8545 for local dev)
+
+2. **"Only Oracle can resolve"**
+   - Connect with Oracle wallet address
+   - Check Oracle address in contract vs. connected wallet
+
+3. **"ERC20InsufficientAllowance"**
+   - Run "Approve" before "Fund"
+   - Ensure sufficient TAB token balance
+
+4. **"Bet not found"**
+   - Create bet first using "Create Bet"
+   - Use correct Bet ID (usually starts from 0)
+
+### Debug Tools
+
+- **Contract Debug**: Visit `/debug` to interact with contracts directly
+- **Block Explorer**: Use local block explorer at `/blockexplorer`
+- **Console Logs**: Check browser console for detailed error messages
+
+## 📝 License
+
+MIT License - see LICENSE file for details
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+## 📞 Support
+
+For questions and support:
+- Create an issue in the repository
+- Check the troubleshooting section
+- Review contract documentation in `/debug`
+
+---
+
+**Built with ❤️ using Scaffold-ETH 2**

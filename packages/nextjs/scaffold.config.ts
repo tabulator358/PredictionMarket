@@ -13,10 +13,9 @@ export const DEFAULT_ALCHEMY_API_KEY = "oKxs-03sij-U_N0iOlrSsZFr29-IqbuF";
 
 const scaffoldConfig = {
   /**
-   * Target network: Sepolia testnet
-   * (dříve zde bylo chains.hardhat)
+   * Target network: local Hardhat (for yarn chain + yarn deploy)
    */
-  targetNetworks: [chains.sepolia],
+  targetNetworks: [chains.hardhat],
 
   /**
    * Interval pro načítání nových dat z RPC (ms)
@@ -35,9 +34,7 @@ const scaffoldConfig = {
    * Získáš např. na: https://dashboard.alchemy.com nebo https://infura.io
    */
   rpcOverrides: {
-    [chains.sepolia.id]:
-      process.env.NEXT_PUBLIC_RPC_URL_11155111 ||
-      `https://eth-sepolia.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
+    [chains.hardhat.id]: process.env.NEXT_PUBLIC_RPC_URL_31337 || "http://127.0.0.1:8545",
   },
 
   /**

@@ -26,8 +26,9 @@ const TAB_MIN_ABI = [
 export default function TABcoinPage() {
   const { address: connectedAddress } = useAccount();
 
-  // —— Hardcoded Sepolia address ——
-  const TAB_ADDRESS = "0x9285A9185649cfFDE9Ee5002249525B6049ab29d" as Address;
+  // Address source: env override or hardhat-deploy mapping for localhost
+  const ENV_TAB = (process.env.NEXT_PUBLIC_TAB_ADDRESS as Address) || undefined;
+  const TAB_ADDRESS = (ENV_TAB || ("0x5FbDB2315678afecb367f032d93F642f64180aa3" as Address)) as Address;
 
   // ——— Local UI state ———
   const [mintTo, setMintTo] = useState<string>("");

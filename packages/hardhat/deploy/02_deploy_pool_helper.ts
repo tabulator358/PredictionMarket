@@ -2,15 +2,22 @@ import { DeployFunction } from "hardhat-deploy/types";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 
 const func: DeployFunction = async ({ deployments, getNamedAccounts, network }: HardhatRuntimeEnvironment) => {
-  const { deploy, log } = deployments;
+  const { deploy, log, get } = deployments;
   const { deployer } = await getNamedAccounts();
 
-  // If on Sepolia, put official v3 factory here; for localhost, deploy your own/mock and use that address.
-  const UNIV3_FACTORY = process.env.UNIV3_FACTORY || "";
-
+  // For local testing, get the mock factory address from deployment
+  let UNIV3_FACTORY = process.env.UNIV3_FACTORY;
+  
   if (!UNIV3_FACTORY) {
-    log("UNIV3_FACTORY not set -> skipping pool helper deploy");
-    return;
+    // Try to get from deployed mock factory
+    try {
+      const mockFactory = await get("MockUniswapV3Factory");
+      UNIV3_FACTORY = mockFactory.address;
+      log(`Using deployed MockUniswapV3Factory at: ${UNIV3_FACTORY}`);
+    } catch (e) {
+      log("No UNIV3_FACTORY set and no MockUniswapV3Factory deployed -> skipping pool helper deploy");
+      return;
+    }
   }
 
   const helper = await deploy("UniV3PoolHelper", {
@@ -24,4 +31,4 @@ const func: DeployFunction = async ({ deployments, getNamedAccounts, network }: 
 };
 export default func;
 func.tags = ["Pool"];
-func.dependencies = ["TAB", "Market"];
+func.dependencies = ["TAB", "Market", "MockFactory"];

@@ -22,7 +22,6 @@ import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 
 // ---------------------- Constants ----------------------
 const ENV_MARKET_ADDRESS = process.env.NEXT_PUBLIC_PREDICTION_ADDRESS as Address | undefined;
-const DEFAULT_MARKET_ADDRESS = "0x7e64388dC9f33a99156535e5d079F07BA497AFff" as Address; // Sepolia fallback
 
 // ---------------------- ABIs ----------------------
 const PREDICTION_ABI = [
@@ -107,10 +106,11 @@ const PREDICTION_ABI = [
 ] as const;
 
 const ERC20_ABI = [
-  { name: "decimals", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
-  { name: "symbol", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
-  { name: "balanceOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "decimals", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
+  { type: "function", name: "symbol", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
   {
+    type: "function",
     name: "approve",
     stateMutability: "nonpayable",
     inputs: [{ type: "address" }, { type: "uint256" }],
@@ -162,7 +162,7 @@ export default function PredictionPage() {
     return (
       (ENV_MARKET_ADDRESS as Address | undefined) ||
       (marketInfo?.address as Address | undefined) ||
-      DEFAULT_MARKET_ADDRESS
+      undefined
     );
   }, [ENV_MARKET_ADDRESS, marketInfo?.address]);
   const isMarketReady = !!marketAddress;
@@ -193,6 +193,12 @@ export default function PredictionPage() {
   const [betIdInfo, setBetIdInfo] = useState("0");
   const betIdNum = useMemo(() => Number(betIdInfo || 0), [betIdInfo]);
 
+  // Check if user is Oracle
+  const ORACLE_ADDRESS = "0x9bc0ccBb80544ff09F8ac14bB07dddb688FdEE2B";
+  const isOracle = useMemo(() => {
+    return address && address.toLowerCase() === ORACLE_ADDRESS.toLowerCase();
+  }, [address]);
+
   // ---------------------- Reads ----------------------
   const { data: betCount } = useReadContract({
     address: isMarketReady ? (marketAddress as Address) : undefined,
@@ -215,13 +221,11 @@ export default function PredictionPage() {
   });
 
   // Collateral balance for connected wallet
-  const { data: collateralBal } = useReadContract({
-    address: collateralAddr as Address,
+  const { data: collateralBal, error: collateralError } = useReadContract({
+    address: collateralAddr && address ? (collateralAddr as Address) : undefined,
     abi: ERC20_ABI,
     functionName: "balanceOf",
     args: [((address ?? zeroAddress) as Address)],
-    // Only run when collateral address and user address are available
-    // Note: hook will no-op if address is undefined
   });
 
   // načti metadata kolaterálu (decimals + symbol)
@@ -254,19 +258,19 @@ export default function PredictionPage() {
     setNewDesc("");
   }
 
-  async function onFundBet() {
+  async function onApproveCollateral() {
     try {
+      console.log("DEBUG - marketAddress:", marketAddress);
+      console.log("DEBUG - collateralAddr:", collateralAddr);
+      console.log("DEBUG - address:", address);
+      console.log("DEBUG - isMarketReady:", isMarketReady);
+      
       if (!isMarketReady) throw new Error("Contract address not found. Run yarn deploy or set NEXT_PUBLIC_PREDICTION_ADDRESS.");
       if (!address) throw new Error("Připoj peněženku.");
       if (!wc || !pc) throw new Error("Klient není inicializován, zkus stránku znovu načíst.");
       if (!collateralAddr) throw new Error("Kolaterál není načtený.");
       if (!fundAmount) throw new Error("Zadej částku.");
 
-      const idNum = Number(fundBetId || 0);
-      if (!Number.isFinite(idNum) || idNum < 0) throw new Error("Neplatné Bet ID.");
-      const id = BigInt(idNum);
-
-      // approve kolaterál -> kontrakt
       const d =
         (await pc.readContract({
           address: collateralAddr as Address,
@@ -284,6 +288,30 @@ export default function PredictionPage() {
       });
       await pc.waitForTransactionReceipt({ hash: approveHash });
 
+      notification.success("Approve dokončen.");
+    } catch (e: any) {
+      notification.error(e?.shortMessage ?? e?.message ?? "Approve selhalo");
+    }
+  }
+
+  async function onFundBet() {
+    try {
+      if (!isMarketReady) throw new Error("Contract address not found. Run yarn deploy or set NEXT_PUBLIC_PREDICTION_ADDRESS.");
+      if (!address) throw new Error("Připoj peněženku.");
+      if (!fundAmount) throw new Error("Zadej částku.");
+
+      const idNum = Number(fundBetId || 0);
+      if (!Number.isFinite(idNum) || idNum < 0) throw new Error("Neplatné Bet ID.");
+      const id = BigInt(idNum);
+
+      const d =
+        (await pc!.readContract({
+          address: collateralAddr as Address,
+          abi: ERC20_ABI,
+          functionName: "decimals",
+        })) || 18;
+      const amountRaw = parseUnits(fundAmount, Number(d));
+
       await writeContractAsync({
         address: marketAddress as Address,
         abi: PREDICTION_ABI,
@@ -291,15 +319,23 @@ export default function PredictionPage() {
         args: [id, amountRaw],
       });
 
-      notification.success("Schváleno a odesláno financování.");
+      notification.success("Fundování dokončeno.");
       setFundAmount("");
     } catch (e: any) {
-      notification.error(e?.shortMessage ?? e?.message ?? "Approve & Fund selhalo");
+      notification.error(e?.shortMessage ?? e?.message ?? "Fund selhalo");
     }
   }
 
   async function onResolveBet() {
     if (!isMarketReady) return notification.error("Contract address not found. Run yarn deploy or set NEXT_PUBLIC_PREDICTION_ADDRESS.");
+    if (!address) return notification.error("Please connect your wallet first.");
+    
+    // Check if user is authorized to resolve (hardcoded oracle address)
+    const ORACLE_ADDRESS = "0x9bc0ccBb80544ff09F8ac14bB07dddb688FdEE2B";
+    if (address.toLowerCase() !== ORACLE_ADDRESS.toLowerCase()) {
+      return notification.error("Only the Oracle can resolve bets. You are not authorized to resolve this bet.");
+    }
+    
     const id = BigInt(Number(resBetId || 0));
     const outcome = toOutcome1e18(outcomeTxt);
     await writeContractAsync({
@@ -387,13 +423,22 @@ export default function PredictionPage() {
           <input className={inputCls} value={fundBetId} onChange={e => setFundBetId(e.target.value)} />
           <label className="text-sm opacity-70 mt-2">Amount ({collatSymbol})</label>
           <input className={inputCls} value={fundAmount} onChange={e => setFundAmount(e.target.value)} />
-          <button
-            className="btn btn-primary w-full mt-3"
-            onClick={onFundBet}
-            disabled={!fundAmount || !address || !collateralAddr || !isMarketReady || isPending}
-          >
-            {isPending || txLoading ? "Sending…" : "Approve & Fund"}
-          </button>
+          <div className="flex gap-2 mt-3">
+            <button
+              className="btn btn-secondary flex-1"
+              onClick={onApproveCollateral}
+              disabled={!fundAmount || !address || !collateralAddr || !isMarketReady || isPending}
+            >
+              {isPending || txLoading ? "Sending…" : "Approve"}
+            </button>
+            <button
+              className="btn btn-primary flex-1"
+              onClick={onFundBet}
+              disabled={!fundAmount || !address || !isMarketReady || isPending}
+            >
+              {isPending || txLoading ? "Sending…" : "Fund"}
+            </button>
+          </div>
         </Card>
 
         <Card title="3) Resolve a bet">
@@ -401,8 +446,17 @@ export default function PredictionPage() {
           <input className={inputCls} value={resBetId} onChange={e => setResBetId(e.target.value)} />
           <label className="text-sm opacity-70 mt-2">Outcome (0..1 or %)</label>
           <input className={inputCls} value={outcomeTxt} onChange={e => setOutcomeTxt(e.target.value)} />
-          <button className="btn btn-primary w-full mt-3" onClick={onResolveBet} disabled={isPending}>
-            {isPending || txLoading ? "Sending…" : "Resolve"}
+          {!isOracle && (
+            <div className="text-xs text-warning mt-2">
+              Only the Oracle can resolve bets. You are not authorized.
+            </div>
+          )}
+          <button 
+            className="btn btn-primary w-full mt-3" 
+            onClick={onResolveBet} 
+            disabled={isPending || !isOracle}
+          >
+            {isPending || txLoading ? "Sending…" : isOracle ? "Resolve" : "Oracle Only"}
           </button>
         </Card>
 
@@ -476,15 +530,20 @@ export default function PredictionPage() {
           </div>
         </div>
 
-        {balancesTuple ? (
+        {(balancesTuple || collateralBal !== undefined || collateralError) ? (
           <div className="glass p-3 rounded-xl mt-3">
             <div className="text-xs opacity-70 mb-1">Your balances</div>
             <div className="text-sm font-mono">
-              YES: {formatUnits((balancesTuple as any)[0] as bigint, 18)} | NO:{" "}
-              {formatUnits((balancesTuple as any)[1] as bigint, 18)} | Pool:{" "}
-              {formatUnits((balancesTuple as any)[2] as bigint, decimals)} {collatSymbol}
-              {" "}| Collateral: {collateralBal !== undefined ? formatUnits(collateralBal as bigint, decimals) : "-"} {collatSymbol}
+              YES: {balancesTuple ? formatUnits((balancesTuple as any)[0] as bigint, 18) : "-"} | NO:{" "}
+              {balancesTuple ? formatUnits((balancesTuple as any)[1] as bigint, 18) : "-"} | Pool:{" "}
+              {balancesTuple ? formatUnits((balancesTuple as any)[2] as bigint, decimals) : "-"} {collatSymbol}
+              {" "}| Collateral: {collateralBal !== undefined ? formatUnits(collateralBal as bigint, decimals) : (collateralError ? "Error" : "-")} {collatSymbol}
             </div>
+            {collateralError && (
+              <div className="text-xs text-error mt-1">
+                Collateral read error: {collateralError.message}
+              </div>
+            )}
           </div>
         ) : null}
       </Card>
